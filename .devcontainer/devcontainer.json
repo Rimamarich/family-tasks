@@ -1,0 +1,24 @@
+{
+  "name": "Family Tasks - Flutter",
+
+  // On conserve l'image Linux par défaut de GitHub Codespaces.
+  // Ce fichier sert à rendre Flutter et le SDK Android disponibles
+  // de manière reproductible, sans dépendre de l'état d'une session.
+
+  "remoteEnv": {
+    "FLUTTER_ROOT": "/home/codespace/flutter",
+    "ANDROID_HOME": "/home/codespace/android-sdk",
+    "ANDROID_SDK_ROOT": "/home/codespace/android-sdk",
+    "PATH": "/home/codespace/flutter/bin:/home/codespace/flutter/bin/cache/dart-sdk/bin:/home/codespace/android-sdk/platform-tools:/home/codespace/android-sdk/cmdline-tools/latest/bin:${containerEnv:PATH}"
+  },
+
+  "postCreateCommand": "if [ ! -x /home/codespace/flutter/bin/flutter ]; then git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git /home/codespace/flutter; fi && /home/codespace/flutter/bin/flutter precache --android",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Dart-Code.flutter"
+      ]
+    }
+  }
+}
