@@ -12,6 +12,7 @@ class FamilyMember {
     required this.color,
     required this.stars,
     required this.tasks,
+    this.pause = false,
   });
 
   /// Nom affiché du membre
@@ -28,4 +29,7 @@ class FamilyMember {
 
   /// Liste des tâches du membre
   final List<TaskItem> tasks;
+
+  /// Indique si le membre est en pause / vacances
+  final bool pause;
 }
