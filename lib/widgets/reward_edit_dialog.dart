@@ -12,12 +12,16 @@ class RewardEditDialog extends StatefulWidget {
     this.rewardCost,
     this.rewardUnique = false,
     this.rewardRequiresNote = false,
+    this.minCost = 1,
   });
 
   final String? rewardTitle;
   final int? rewardCost;
   final bool rewardUnique;
   final bool rewardRequiresNote;
+
+  /// Coût minimum autorisé (montant déjà contribué).
+  final int minCost;
 
   bool get isEditing => rewardTitle != null;
 
@@ -65,6 +69,17 @@ class _RewardEditDialogState extends State<RewardEditDialog> {
       );
       return;
     }
+    if (widget.isEditing && cost < widget.minCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Impossible : ${widget.minCost} ⭐ déjà contribuées. '
+            'Le coût doit être supérieur ou égal à ${widget.minCost} ⭐.',
+          ),
+        ),
+      );
+      return;
+    }
 
     Navigator.of(context).pop({
       'title': title,
@@ -102,10 +117,13 @@ class _RewardEditDialogState extends State<RewardEditDialog> {
             TextField(
               controller: _costController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Coût en étoiles',
                 suffixText: '⭐',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                helperText: widget.isEditing
+                    ? 'Minimum : ${widget.minCost} ⭐ (déjà contribuées)'
+                    : null,
               ),
             ),
             const SizedBox(height: 16),
