@@ -2,34 +2,46 @@ import 'package:flutter/material.dart';
 import 'task.dart';
 
 /// Représente un membre de la famille.
-///
-/// Un membre possède un nom, un avatar, une couleur, un solde d'étoiles
-/// et la liste de ses tâches.
 class FamilyMember {
   const FamilyMember({
+    this.id,
     required this.name,
     required this.avatar,
     required this.color,
     required this.stars,
-    required this.tasks,
+    this.tasks = const [],
     this.pause = false,
   });
 
-  /// Nom affiché du membre
+  /// Identifiant unique dans la base de données.
+  /// null si le membre n'a pas encore été inséré.
+  final int? id;
+
   final String name;
-
-  /// Emoji utilisé comme avatar
   final String avatar;
-
-  /// Couleur associée au membre (utilisée dans toute l'interface)
   final Color color;
-
-  /// Solde actuel d'étoiles
   final int stars;
-
-  /// Liste des tâches du membre
   final List<TaskItem> tasks;
-
-  /// Indique si le membre est en pause / vacances
   final bool pause;
+
+  /// Crée une copie du membre avec des champs modifiés.
+  FamilyMember copyWith({
+    int? id,
+    String? name,
+    String? avatar,
+    Color? color,
+    int? stars,
+    List<TaskItem>? tasks,
+    bool? pause,
+  }) {
+    return FamilyMember(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatar: avatar ?? this.avatar,
+      color: color ?? this.color,
+      stars: stars ?? this.stars,
+      tasks: tasks ?? this.tasks,
+      pause: pause ?? this.pause,
+    );
+  }
 }

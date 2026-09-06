@@ -1,28 +1,54 @@
 /// Représente une tâche dans l'application Family Tasks.
-///
-/// Une tâche est une occurrence concrète issue du fichier ICS.
-/// Elle appartient à un membre, pour un moment donné de la journée.
 class TaskItem {
   const TaskItem({
+    this.id,
     required this.title,
     required this.stars,
-    required this.moment,
+    this.momentId,
+    this.moment,
     this.description,
     this.completed = false,
+    this.taskDate,
   });
 
-  /// Titre de la tâche (ex: "Ranger la cuisine")
-  final String title;
+  /// Identifiant unique dans la base de données.
+  final int? id;
 
-  /// Nombre d'étoiles gagnées en validant la tâche
+  final String title;
   final int stars;
 
-  /// Moment de la journée (ex: "Matin", "Soirée")
-  final String moment;
+  /// ID du moment (venant de la base de données).
+  final int? momentId;
 
-  /// Description optionnelle (ex: "Mettre les affaires à leur place")
+  /// Nom du moment (pour l'affichage, pas stocké en base).
+  final String? moment;
+
   final String? description;
-
-  /// Indique si la tâche est terminée
   final bool completed;
+
+  /// Date de la tâche au format YYYY-MM-DD.
+  final String? taskDate;
+
+  /// Crée une copie avec des champs modifiés.
+  TaskItem copyWith({
+    int? id,
+    String? title,
+    int? stars,
+    int? momentId,
+    String? moment,
+    String? description,
+    bool? completed,
+    String? taskDate,
+  }) {
+    return TaskItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      stars: stars ?? this.stars,
+      momentId: momentId ?? this.momentId,
+      moment: moment ?? this.moment,
+      description: description ?? this.description,
+      completed: completed ?? this.completed,
+      taskDate: taskDate ?? this.taskDate,
+    );
+  }
 }
