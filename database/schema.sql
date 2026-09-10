@@ -68,6 +68,7 @@ CREATE TABLE config (
   parent_pin TEXT NOT NULL,
   ics_url TEXT NOT NULL,
   max_obtenues INTEGER NOT NULL DEFAULT 3,
+  max_obtenues_limit INTEGER NOT NULL DEFAULT 50,
   message_1 TEXT NOT NULL DEFAULT 'Tu es un champion ! 🏆',
   message_2 TEXT NOT NULL DEFAULT 'Quelle journée productive ! 🌟',
   message_3 TEXT NOT NULL DEFAULT 'Tu peux être fier de toi ! 💪',

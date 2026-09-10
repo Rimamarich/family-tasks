@@ -58,6 +58,8 @@ class MemberColumn extends StatelessWidget {
 
   /// En-tête avec l'avatar, le nom et le solde d'étoiles
   Widget _buildMemberHeader() {
+    final isNegative = member.stars < 0;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -101,14 +103,15 @@ class MemberColumn extends StatelessWidget {
               Icon(
                 Icons.star_rounded,
                 size: 22,
-                color: member.color,
+                color: isNegative ? Colors.red : member.color,
               ),
               const SizedBox(width: 3),
               Text(
                 '${member.stars}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
+                  color: isNegative ? Colors.red : null,
                 ),
               ),
             ],

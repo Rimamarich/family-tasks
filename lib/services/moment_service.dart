@@ -51,4 +51,46 @@ class MomentService {
     final db = await DatabaseHelper.instance.database;
     return db.delete('moments', where: 'id = ?', whereArgs: [id]);
   }
+
+  /// Compte les tâches liées à un moment.
+  static Future<int> countTasks(int momentId) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM tasks WHERE moment_id = ?',
+      [momentId],
+    );
+    return result.first['count'] as int? ?? 0;
+  }
+
+  /// Déplace les tâches d'un moment vers un autre.
+  static Future<void> moveTasks(int fromMomentId, int toMomentId) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.update(
+      'tasks',
+      {'moment_id': toMomentId},
+      where: 'moment_id = ?',
+      whereArgs: [fromMomentId],
+    );
+  }
+
+  /// Vérifie si une heure de fin est déjà utilisée par un autre moment.
+  static Future<bool> isHeureDeFinTaken(String heureDeFin, {int? excludeId}) async {
+    final db = await DatabaseHelper.instance.database;
+
+    if (excludeId != null) {
+      final result = await db.query(
+        'moments',
+        where: 'heure_de_fin = ? AND id != ?',
+        whereArgs: [heureDeFin, excludeId],
+      );
+      return result.isNotEmpty;
+    } else {
+      final result = await db.query(
+        'moments',
+        where: 'heure_de_fin = ?',
+        whereArgs: [heureDeFin],
+      );
+      return result.isNotEmpty;
+    }
+  }
 }

@@ -380,6 +380,7 @@ INSERT INTO config (
   parent_pin,
   ics_url,
   max_obtenues,
+  max_obtenues_limit,
   message_1,
   message_2,
   message_3,
@@ -392,11 +393,11 @@ VALUES
     '1234',
     'https://example.com/family-tasks.ics',
     3,
+    50,
     'Tu es un champion ! 🏆',
     'Quelle journée productive ! 🌟',
     'Tu peux être fier de toi ! 💪',
     'Bravo, continue comme ça ! 🎉',
     'Tu as assuré aujourd''hui ! ⭐'
   );
-
 COMMIT;

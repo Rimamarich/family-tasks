@@ -30,11 +30,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<Moment> _moments = [];
   List<Reward> _rewards = [];
   Map<int, int> _contributedByReward = {};
+  Map<int, bool> _hasHistory = {};
   bool _isLoading = true;
   bool _hasError = false;
   String _errorMessage = '';
 
   int _maxObtenues = 3;
+  int _maxObtenuesLimit = 50;
 
   @override
   void initState() {
@@ -59,14 +61,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final moments = await MomentService.getAll();
       final rewards = await RewardService.getAll();
       final maxObtenues = await ConfigService.getMaxObtenues();
+      final maxObtenuesLimit = await ConfigService.getMaxObtenuesLimit();
       final messages = await ConfigService.getMessages();
 
-      // Charge les contributions pour chaque récompense
       final contributedByReward = <int, int>{};
       for (final reward in rewards) {
         final contributions = await RewardService.getContributions(reward.id!);
-        final total = contributions.fold(0, (sum, c) => sum + c.stars);
+        final activeContributions = contributions.where((c) => c.redemptionId == null);
+        final total = activeContributions.fold(0, (sum, c) => sum + c.stars);
         contributedByReward[reward.id!] = total;
+      }
+
+      final hasHistory = <int, bool>{};
+      for (final member in members) {
+        hasHistory[member.id!] = await MemberService.hasHistory(member.id!);
       }
 
       _icsController.text = await ConfigService.getIcsUrl() ?? '';
@@ -81,7 +89,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _moments = moments;
         _rewards = rewards;
         _contributedByReward = contributedByReward;
+        _hasHistory = hasHistory;
         _maxObtenues = maxObtenues;
+        _maxObtenuesLimit = maxObtenuesLimit;
         _isLoading = false;
       });
     } catch (e) {
@@ -138,8 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer le membre'),
-        content: Text(
-            'Veux-tu vraiment supprimer ${_members[index].name} ? Ses étoiles et son historique seront perdus.'),
+        content: Text('Veux-tu vraiment supprimer ${_members[index].name} ?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
@@ -173,7 +182,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => const MomentEditDialog(),
     );
     if (result != null) {
-      final moment = Moment(name: result['name'], heureDeFin: result['heure_de_fin']);
+      final heure = result['heure_de_fin'] as String;
+      final isTaken = await MomentService.isHeureDeFinTaken(heure);
+      if (isTaken) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cette heure est déjà utilisée par un autre moment.')),
+          );
+        }
+        return;
+      }
+      final moment = Moment(name: result['name'], heureDeFin: heure);
       await MomentService.insert(moment);
       await _loadData();
     }
@@ -189,35 +208,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (result != null) {
+      final heure = result['heure_de_fin'] as String;
+      final isTaken = await MomentService.isHeureDeFinTaken(heure, excludeId: moment.id);
+      if (isTaken) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cette heure est déjà utilisée par un autre moment.')),
+          );
+        }
+        return;
+      }
       final updated = Moment(
         id: moment.id,
         name: result['name'],
-        heureDeFin: result['heure_de_fin'],
+        heureDeFin: heure,
       );
       await MomentService.update(updated);
       await _loadData();
     }
   }
 
-  void _deleteMoment(int index) {
+  void _deleteMoment(int index) async {
+    final moment = _moments[index];
+
+    if (_moments.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible de supprimer le dernier moment.')),
+      );
+      return;
+    }
+
+    final taskCount = await MomentService.countTasks(moment.id!);
+
+    if (taskCount == 0) {
+      _confirmDeleteMoment(moment);
+    } else {
+      _chooseDestinationAndDelete(moment, taskCount);
+    }
+  }
+
+  void _confirmDeleteMoment(Moment moment) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer le moment'),
-        content: Text(
-            'Veux-tu vraiment supprimer le moment "${_moments[index].name}" ?'),
+        content: Text('Veux-tu vraiment supprimer le moment "${moment.name}" ?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Annuler')),
           FilledButton(
             onPressed: () async {
-              await MomentService.delete(_moments[index].id!);
+              await MomentService.delete(moment.id!);
               Navigator.pop(context);
               await _loadData();
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _chooseDestinationAndDelete(Moment moment, int taskCount) {
+    final destinations = _moments.where((m) => m.id != moment.id).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déplacer les tâches'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Ce moment contient $taskCount tâche${taskCount > 1 ? 's' : ''}.\n'
+              'Vers quel moment veux-tu les déplacer ?',
+            ),
+            const SizedBox(height: 16),
+            for (final dest in destinations)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OutlinedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await MomentService.moveTasks(moment.id!, dest.id!);
+                    await MomentService.delete(moment.id!);
+                    await _loadData();
+                  },
+                  child: Text(dest.name),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
           ),
         ],
       ),
@@ -269,7 +357,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       await RewardService.update(updated);
 
-      // Si le montant contribué atteint le nouveau coût, la réjouissance est obtenue
       if (contributed >= newCost) {
         if (requiresNote) {
           _showNoteDialog(reward, newCost);
@@ -402,7 +489,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _changeMaxObtenues(int delta) async {
     final newValue = _maxObtenues + delta;
-    if (newValue < 1 || newValue > 10) return;
+    if (newValue < 1 || newValue > _maxObtenuesLimit) return;
     setState(() => _maxObtenues = newValue);
     await ConfigService.setMaxObtenues(newValue);
   }
@@ -491,6 +578,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildMemberTile(int index) {
     final m = _members[index];
+    final hasHistory = _hasHistory[m.id] ?? false;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
@@ -513,11 +602,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               tooltip: m.pause ? 'Réactiver' : 'Mettre en pause',
               onPressed: () => _togglePause(index),
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              tooltip: 'Supprimer',
-              onPressed: () => _deleteMember(index),
-            ),
+            if (!hasHistory)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                tooltip: 'Supprimer',
+                onPressed: () => _deleteMember(index),
+              ),
           ],
         ),
         onTap: () => _editMember(index),
@@ -534,6 +624,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         tooltip: 'Ajouter un moment',
       ),
       children: [
+        Text(
+          'Pour ajouter un moment entre deux existants, modifie d\'abord l\'heure de fin '
+          'du moment qui précède pour libérer un créneau.\n'
+          'Chaque moment doit avoir une heure de fin unique.',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 12),
         for (var i = 0; i < _moments.length; i++)
           Card(
             margin: const EdgeInsets.only(bottom: 6),

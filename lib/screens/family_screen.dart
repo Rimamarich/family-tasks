@@ -115,12 +115,37 @@ class _FamilyScreenState extends State<FamilyScreen> {
     await _loadData();
     _headerKey.currentState?.reload();
 
+    // Si le solde devient négatif après dévalidation, afficher un message
+    if (newStars < 0 && wasCompleted) {
+      _showCreditMessage(member.name, newStars);
+    }
+
     if (!wasCompleted) {
       final memberTasks = _tasksByMember[member.id] ?? [];
       if (memberTasks.every((t) => t.completed)) {
         _showCongrats(member.name);
       }
     }
+  }
+
+  void _showCreditMessage(String name, int stars) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('💸 Étoiles empruntées'),
+        content: Text(
+          '$name a dépensé ses étoiles.\n'
+          'Maintenant, $name doit regagner ${stars.abs()} ⭐ pour rembourser !',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Compris !'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCongrats(String name) async {

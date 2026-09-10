@@ -20,14 +20,14 @@ echo "========================================"
 echo
 
 fail() {
-    echo
-    echo "✗ ERREUR : $1"
-    echo
-    exit 1
+  echo
+  echo "✗ ERREUR : $1"
+  echo
+  exit 1
 }
 
 ok() {
-    echo "✓ $1"
+  echo "✓ $1"
 }
 
 # ------------------------------------------------------------
@@ -35,7 +35,7 @@ ok() {
 # ------------------------------------------------------------
 
 command -v flutter >/dev/null 2>&1 \
-    || fail "Flutter est introuvable dans le PATH."
+  || fail "Flutter est introuvable dans le PATH."
 
 FLUTTER_VERSION="$(flutter --version | head -n 1)"
 ok "$FLUTTER_VERSION"
@@ -45,13 +45,13 @@ ok "$FLUTTER_VERSION"
 # ------------------------------------------------------------
 
 [ -n "${ANDROID_HOME:-}" ] \
-    || fail "ANDROID_HOME n'est pas défini."
+  || fail "ANDROID_HOME n'est pas défini."
 
 [ -d "$ANDROID_HOME" ] \
-    || fail "ANDROID_HOME pointe vers un dossier introuvable : $ANDROID_HOME"
+  || fail "ANDROID_HOME pointe vers un dossier introuvable : $ANDROID_HOME"
 
 [ -x "$ANDROID_HOME/platform-tools/adb" ] \
-    || fail "adb est introuvable dans \$ANDROID_HOME/platform-tools."
+  || fail "adb est introuvable dans \$ANDROID_HOME/platform-tools."
 
 ok "SDK Android : $ANDROID_HOME"
 
@@ -60,13 +60,13 @@ ok "SDK Android : $ANDROID_HOME"
 # ------------------------------------------------------------
 
 [ -d "$ANDROID_DIR" ] \
-    || fail "Le dossier android/ est introuvable."
+  || fail "Le dossier android/ est introuvable."
 
 [ -f "$BUILD_GRADLE" ] \
-    || fail "android/app/build.gradle.kts est introuvable."
+  || fail "android/app/build.gradle.kts est introuvable."
 
 [ -f "$GRADLE_PROPERTIES" ] \
-    || fail "android/gradle.properties est introuvable."
+  || fail "android/gradle.properties est introuvable."
 
 ok "Projet Flutter/Android trouvé"
 
@@ -75,10 +75,10 @@ ok "Projet Flutter/Android trouvé"
 # ------------------------------------------------------------
 
 grep -q 'applicationId = "fr.tribulle.familytasks"' "$BUILD_GRADLE" \
-    || fail "L'applicationId Android n'est pas fr.tribulle.familytasks."
+  || fail "L'applicationId Android n'est pas fr.tribulle.familytasks."
 
 grep -q 'namespace = "fr.tribulle.familytasks"' "$BUILD_GRADLE" \
-    || fail "Le namespace Android n'est pas fr.tribulle.familytasks."
+  || fail "Le namespace Android n'est pas fr.tribulle.familytasks."
 
 ok "Identité Android : fr.tribulle.familytasks"
 
@@ -87,29 +87,29 @@ ok "Identité Android : fr.tribulle.familytasks"
 # ------------------------------------------------------------
 
 [ -f "$KEY_PROPERTIES" ] \
-    || fail "android/key.properties est absent."
+  || fail "android/key.properties est absent."
 
 grep -q '^keyAlias=' "$KEY_PROPERTIES" \
-    || fail "keyAlias est absent de key.properties."
+  || fail "keyAlias est absent de key.properties."
 
 grep -q '^keyPassword=' "$KEY_PROPERTIES" \
-    || fail "keyPassword est absent de key.properties."
+  || fail "keyPassword est absent de key.properties."
 
 grep -q '^storePassword=' "$KEY_PROPERTIES" \
-    || fail "storePassword est absent de key.properties."
+  || fail "storePassword est absent de key.properties."
 
 grep -q '^storeFile=' "$KEY_PROPERTIES" \
-    || fail "storeFile est absent de key.properties."
+  || fail "storeFile est absent de key.properties."
 
 STORE_FILE="$(sed -n 's/^storeFile=//p' "$KEY_PROPERTIES" | head -n 1)"
 
 [ -n "$STORE_FILE" ] \
-    || fail "storeFile est vide."
+  || fail "storeFile est vide."
 
 KEYSTORE_PATH="$(realpath -m "$ANDROID_DIR/$STORE_FILE")"
 
 [ -f "$KEYSTORE_PATH" ] \
-    || fail "Le keystore indiqué par key.properties est introuvable : $KEYSTORE_PATH"
+  || fail "Le keystore indiqué par key.properties est introuvable : $KEYSTORE_PATH"
 
 ok "Keystore et key.properties présents"
 
@@ -118,7 +118,7 @@ ok "Keystore et key.properties présents"
 # ------------------------------------------------------------
 
 grep -q '^org.gradle.jvmargs=' "$GRADLE_PROPERTIES" \
-    || fail "org.gradle.jvmargs n'est pas défini explicitement dans gradle.properties."
+  || fail "org.gradle.jvmargs n'est pas défini explicitement dans gradle.properties."
 
 ok "Limite mémoire Gradle définie explicitement"
 
@@ -132,29 +132,50 @@ AVAILABLE_KB="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)"
 MIN_AVAILABLE_KB=$((3 * 1024 * 1024))
 
 if [ "$AVAILABLE_KB" -lt "$MIN_AVAILABLE_KB" ]; then
-    AVAILABLE_GIB="$(awk "BEGIN {printf \"%.1f\", $AVAILABLE_KB/1024/1024}")"
-    fail "Seulement ${AVAILABLE_GIB} GiB de RAM disponibles. Attends que l'environnement soit moins chargé ou augmente la machine Codespaces."
+  AVAILABLE_GIB="$(awk "BEGIN {printf \"%.1f\", $AVAILABLE_KB/1024/1024}")"
+  fail "Seulement ${AVAILABLE_GIB} GiB de RAM disponibles. Attends que l'environnement soit moins chargé ou augmente la machine Codespaces."
 fi
 
 AVAILABLE_GIB="$(awk "BEGIN {printf \"%.1f\", $AVAILABLE_KB/1024/1024}")"
 ok "Mémoire disponible : ${AVAILABLE_GIB} GiB"
 
 # ------------------------------------------------------------
-# 8. Arrêt des anciens daemons Gradle
+# 8. Régénération de la base de données de test
+# ------------------------------------------------------------
+
+echo
+echo "→ Régénération de la base de données de test..."
+
+bash "$ROOT_DIR/scripts/reset-db.sh" >/dev/null
+
+[ -f "$ROOT_DIR/family-tasks.db" ] \
+  || fail "La base family-tasks.db n'a pas été créée."
+
+TASK_COUNT="$(sqlite3 "$ROOT_DIR/family-tasks.db" "SELECT COUNT(*) FROM tasks;")"
+
+[ "$TASK_COUNT" -gt 0 ] \
+  || fail "La base régénérée ne contient aucune tâche."
+
+cp "$ROOT_DIR/family-tasks.db" "$ROOT_DIR/assets/family-tasks.db"
+
+ok "Base régénérée ($TASK_COUNT tâches) et copiée dans assets/"
+
+# ------------------------------------------------------------
+# 9. Arrêt des anciens daemons Gradle
 # ------------------------------------------------------------
 
 echo
 echo "→ Arrêt des anciens daemons Gradle..."
 
 (
-    cd "$ANDROID_DIR"
-    ./gradlew --stop
+  cd "$ANDROID_DIR"
+  ./gradlew --stop
 )
 
 ok "Daemons Gradle nettoyés"
 
 # ------------------------------------------------------------
-# 9. Construction
+# 10. Construction
 # ------------------------------------------------------------
 
 echo
@@ -166,11 +187,11 @@ cd "$ROOT_DIR"
 flutter build apk --release
 
 # ------------------------------------------------------------
-# 10. Vérification finale
+# 11. Vérification finale
 # ------------------------------------------------------------
 
 [ -f "$APK" ] \
-    || fail "La construction semble terminée mais l'APK est introuvable."
+  || fail "La construction semble terminée mais l'APK est introuvable."
 
 APK_SIZE="$(du -h "$APK" | cut -f1)"
 

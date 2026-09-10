@@ -28,6 +28,12 @@ class ConfigService {
     return config?['max_obtenues'] as int? ?? 3;
   }
 
+  /// Récupère la limite maximale du nombre de réjouissances affichées.
+  static Future<int> getMaxObtenuesLimit() async {
+    final config = await get();
+    return config?['max_obtenues_limit'] as int? ?? 50;
+  }
+
   /// Récupère les 5 messages d'encouragement.
   static Future<List<String>> getMessages() async {
     final config = await get();

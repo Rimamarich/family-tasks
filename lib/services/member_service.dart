@@ -41,6 +41,27 @@ class MemberService {
     await db.update('members', {'stars': stars}, where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Vérifie si un membre a des tâches ou des contributions.
+  ///
+  /// Si oui, il ne peut pas être supprimé, seulement mis en pause.
+  static Future<bool> hasHistory(int id) async {
+    final db = await DatabaseHelper.instance.database;
+
+    final tasks = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM tasks WHERE member_id = ?',
+      [id],
+    );
+    final contributions = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM reward_contributions WHERE member_id = ?',
+      [id],
+    );
+
+    final taskCount = tasks.first['count'] as int? ?? 0;
+    final contributionCount = contributions.first['count'] as int? ?? 0;
+
+    return taskCount > 0 || contributionCount > 0;
+  }
+
   static FamilyMember _rowToMember(Map<String, dynamic> row) {
     return FamilyMember(
       id: row['id'] as int,
