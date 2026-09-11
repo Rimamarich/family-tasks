@@ -69,9 +69,21 @@ CREATE TABLE config (
   ics_url TEXT NOT NULL,
   max_obtenues INTEGER NOT NULL DEFAULT 3,
   max_obtenues_limit INTEGER NOT NULL DEFAULT 50,
+  default_stars INTEGER NOT NULL DEFAULT 5,
+  family_configured INTEGER NOT NULL DEFAULT 0,
+  last_sync_at TEXT,
+  last_sync_status TEXT,
+  last_sync_message TEXT,
   message_1 TEXT NOT NULL DEFAULT 'Tu es un champion ! 🏆',
   message_2 TEXT NOT NULL DEFAULT 'Quelle journée productive ! 🌟',
   message_3 TEXT NOT NULL DEFAULT 'Tu peux être fier de toi ! 💪',
   message_4 TEXT NOT NULL DEFAULT 'Bravo, continue comme ça ! 🎉',
   message_5 TEXT NOT NULL DEFAULT 'Tu as assuré aujourd''hui ! ⭐'
+);
+
+CREATE TABLE sync_errors (
+  id INTEGER PRIMARY KEY,
+  event_title TEXT NOT NULL,
+  error_message TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );

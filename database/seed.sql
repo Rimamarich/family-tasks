@@ -19,6 +19,7 @@ DELETE FROM tasks;
 DELETE FROM moments;
 DELETE FROM members;
 DELETE FROM config;
+DELETE FROM sync_errors;
 
 -- ============================================================
 -- MEMBERS
@@ -381,6 +382,11 @@ INSERT INTO config (
   ics_url,
   max_obtenues,
   max_obtenues_limit,
+  default_stars,
+  family_configured,
+  last_sync_at,
+  last_sync_status,
+  last_sync_message,
   message_1,
   message_2,
   message_3,
@@ -394,10 +400,16 @@ VALUES
     'https://example.com/family-tasks.ics',
     3,
     50,
+    5,
+    0,
+    NULL,
+    NULL,
+    NULL,
     'Tu es un champion ! 🏆',
     'Quelle journée productive ! 🌟',
     'Tu peux être fier de toi ! 💪',
     'Bravo, continue comme ça ! 🎉',
     'Tu as assuré aujourd''hui ! ⭐'
   );
+
 COMMIT;

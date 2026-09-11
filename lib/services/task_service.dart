@@ -36,6 +36,19 @@ class TaskService {
     );
   }
 
+  /// Supprime toutes les tâches non terminées d'une date.
+  ///
+  /// Utilisé par la synchronisation ICS : avant de recréer les tâches
+  /// du jour, on supprime celles qui n'ont pas été validées.
+  static Future<void> deleteUncompletedByDate(String date) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.delete(
+      'tasks',
+      where: 'task_date = ? AND completed = 0',
+      whereArgs: [date],
+    );
+  }
+
   /// Convertit une ligne SQL en objet TaskItem.
   static TaskItem _rowToTask(Map<String, dynamic> row) {
     return TaskItem(

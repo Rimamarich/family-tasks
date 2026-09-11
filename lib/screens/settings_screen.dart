@@ -4,6 +4,8 @@ import '../services/member_service.dart';
 import '../services/moment_service.dart';
 import '../services/reward_service.dart';
 import '../services/config_service.dart';
+import '../services/ics_service.dart';
+import '../services/database_helper.dart';
 import '../widgets/family_header.dart';
 import '../widgets/member_edit_dialog.dart';
 import '../widgets/moment_edit_dialog.dart';
@@ -38,6 +40,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _maxObtenues = 3;
   int _maxObtenuesLimit = 50;
 
+  Map<String, String?> _lastSync = {
+    'at': null,
+    'status': null,
+    'message': null,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final maxObtenues = await ConfigService.getMaxObtenues();
       final maxObtenuesLimit = await ConfigService.getMaxObtenuesLimit();
       final messages = await ConfigService.getMessages();
+      final lastSync = await ConfigService.getLastSync();
 
       final contributedByReward = <int, int>{};
       for (final reward in rewards) {
@@ -92,6 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _hasHistory = hasHistory;
         _maxObtenues = maxObtenues;
         _maxObtenuesLimit = maxObtenuesLimit;
+        _lastSync = lastSync;
         _isLoading = false;
       });
     } catch (e) {
@@ -460,9 +470,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _syncNow() {
+  Future<void> _syncNow() async {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Synchronisation bientôt disponible.')),
+      const SnackBar(content: Text('Synchronisation en cours...')),
+    );
+
+    final eventCount = await IcsService.sync();
+
+    if (!mounted) return;
+
+    // Récupère le statut pour compter les erreurs
+    final lastSync = await ConfigService.getLastSync();
+    final errorCount = _extractErrorCount(lastSync['message']);
+
+    String message;
+    if (eventCount == 0 && errorCount == 0) {
+      message = 'Aucun événement à synchroniser aujourd\'hui.';
+    } else if (errorCount == 0) {
+      message = '$eventCount événement(s) synchronisé(s).';
+    } else {
+      message =
+          '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+
+    await _loadData();
+  }
+
+  /// Extrait le nombre d'erreurs depuis un message du type
+  /// "2 événement(s) en erreur."
+  int _extractErrorCount(String? message) {
+    if (message == null || message.isEmpty) return 0;
+    final match = RegExp(r'(\d+)').firstMatch(message);
+    if (match == null) return 0;
+    return int.tryParse(match.group(1)!) ?? 0;
+  }
+
+  /// Ouvre le journal des erreurs de la dernière synchronisation.
+  Future<void> _showErrorJournal() async {
+    final db = await DatabaseHelper.instance.database;
+    final results = await db.query('sync_errors', orderBy: 'id ASC');
+
+    if (!mounted) return;
+
+    if (results.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucune erreur enregistrée.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Journal des erreurs'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: results.length,
+            itemBuilder: (context, index) {
+              final row = results[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '⚠️ ${row['event_title']}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      row['error_message'] as String,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -752,7 +853,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        _buildSyncStatus(),
       ],
+    );
+  }
+
+  Widget _buildSyncStatus() {
+    final status = _lastSync['status'];
+    final message = _lastSync['message'] ?? '';
+    final at = _lastSync['at'];
+
+    if (status == null) {
+      return Text(
+        'Aucune synchronisation effectuée pour le moment.',
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+      );
+    }
+
+    String formattedDate = '';
+    if (at != null) {
+      final date = DateTime.tryParse(at);
+      if (date != null) {
+        formattedDate =
+            '${date.day}/${date.month}/${date.year} à ${date.hour}h${date.minute.toString().padLeft(2, '0')}';
+      }
+    }
+
+    Color color;
+    IconData icon;
+    String label;
+    bool showDetails = false;
+
+    switch (status) {
+      case 'success':
+        color = Colors.green;
+        icon = Icons.check_circle;
+        label = 'Aucune erreur détectée.';
+        break;
+      case 'partial':
+        color = Colors.orange;
+        icon = Icons.warning_amber_rounded;
+        label = message.isNotEmpty ? message : 'Certains événements ont échoué.';
+        showDetails = true;
+        break;
+      case 'failed':
+        color = Colors.red;
+        icon = Icons.error_outline;
+        label = message.isNotEmpty ? message : 'Synchronisation échouée.';
+        break;
+      default:
+        color = Colors.grey;
+        icon = Icons.help_outline;
+        label = 'Statut inconnu.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Dernière synchronisation : $formattedDate',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (showDetails) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _showErrorJournal,
+                icon: const Icon(Icons.list, size: 18),
+                label: const Text('Voir le détail'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
