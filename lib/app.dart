@@ -94,6 +94,21 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
     return int.tryParse(match.group(1)!) ?? 0;
   }
 
+  /// Contexte situé SOUS le MaterialApp (donc rattaché à un Navigator).
+  ///
+  /// Le `context` de ce State correspond au widget FamilyTasksApp
+  /// lui-même, qui est un ANCÊTRE du MaterialApp qu'il construit dans
+  /// build(). Il n'y a donc aucun Navigator au-dessus de lui.
+  /// showDialog / Navigator.pop ont besoin d'un Navigator ancêtre :
+  /// utiliser directement `context` pour ces appels échoue (l'erreur
+  /// part dans le Future de la fonction async et n'est jamais
+  /// affichée), ce qui bloque silencieusement toute navigation
+  /// programmatique — c'est ce qui empêchait l'ouverture du PIN.
+  ///
+  /// Le Scaffold plus bas dans l'arbre porte `_scaffoldKey`, ce qui
+  /// nous donne un contexte valide, sous le Navigator.
+  BuildContext? get _navContext => _scaffoldKey.currentContext;
+
   /// Change d'onglet. Protège l'accès aux paramètres par PIN.
   Future<void> _onTabSelected(int index) async {
     // Rien à faire si on est déjà sur cet onglet
@@ -101,7 +116,9 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
 
     // Si on demande l'onglet Paramètres, on demande le PIN
     if (index == _settingsTabIndex) {
-      final ok = await PinDialog.show(context);
+      final navContext = _navContext;
+      if (navContext == null) return;
+      final ok = await PinDialog.show(navContext);
       if (!mounted) return;
       if (!ok) return; // PIN refusé ou annulé → on reste où on est
     }
@@ -182,8 +199,12 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
                 ),
                 selected: _currentIndex == i,
                 onTap: () async {
-                  // Ferme le drawer d'abord
-                  Navigator.pop(context);
+                  // Ferme le drawer d'abord — via un contexte rattaché
+                  // au Navigator (même raison que pour le PIN ci-dessus).
+                  final navContext = _navContext;
+                  if (navContext != null) {
+                    Navigator.pop(navContext);
+                  }
                   // Attend la fin de l'animation de fermeture
                   await Future.delayed(const Duration(milliseconds: 300));
                   if (!mounted) return;
