@@ -77,29 +77,11 @@ class IcsService {
       return 0;
     }
 
-    // 4. Vide la table sync_errors AVANT de filtrer
+    // 4. Vide la table sync_errors
     await _clearSyncErrors();
 
     // 5. Filtre les événements qui ont une occurrence aujourd'hui
-    final debugLog = <String>[];
-    debugLog.add('Date du jour : ${_dateToString(today)}');
-    debugLog.add('Total événements parsés : ${events.length}');
-    debugLog.add(
-        'Événements avec RRULE : ${events.where((e) => e.rrule != null).length}');
-
-    final todayEvents = <_IcsEvent>[];
-    for (final e in events) {
-      if (_occursOn(e, today, debugLog)) {
-        todayEvents.add(e);
-      }
-    }
-
-    debugLog.add('Événements retenus aujourd\'hui : ${todayEvents.length}');
-
-    // DEBUG : enregistre le log dans sync_errors
-    for (final log in debugLog) {
-      await _addError('[DEBUG]', log);
-    }
+    final todayEvents = events.where((e) => _occursOn(e, today)).toList();
 
     // 6. Supprime les tâches non terminées du jour
     await TaskService.deleteUncompletedByDate(todayStr);
@@ -121,8 +103,8 @@ class IcsService {
       if (result) importedCount++;
     }
 
-    // 8. Enregistre le statut (sans compter les entrées [DEBUG])
-    final errorsCount = await _countRealSyncErrors();
+    // 8. Enregistre le statut
+    final errorsCount = await _countSyncErrors();
     if (errorsCount == 0) {
       await _saveStatus('success', '');
     } else {
@@ -146,15 +128,10 @@ class IcsService {
   }
 
   /// Vérifie si un événement a une occurrence à la date donnée.
-  static bool _occursOn(_IcsEvent event, DateTime date, List<String> debugLog) {
+  static bool _occursOn(_IcsEvent event, DateTime date) {
     // Cas ponctuel
     if (event.rrule == null || event.rrule!.isEmpty) {
-      final match = _dateToString(event.start) == _dateToString(date);
-      if (match) {
-        debugLog.add(
-            'PONCTUEL inclus : "${event.title}" (${_dateToString(event.start)})');
-      }
-      return match;
+      return _dateToString(event.start) == _dateToString(date);
     }
 
     // Cas récurrent
@@ -163,35 +140,18 @@ class IcsService {
       final targetUtc =
           DateTime.utc(date.year, date.month, date.day, 23, 59, 59);
 
-      debugLog.add('--- RRULE pour "${event.title}" ---');
-      debugLog.add('  RRULE brute : ${event.rrule}');
-      debugLog.add('  Start local : ${event.start}');
-      debugLog.add('  Start UTC   : $startUtc');
-      debugLog.add('  Target UTC  : $targetUtc');
-
-      // Le package rrule attend une chaîne préfixée par "RRULE:"
       final rrule = RecurrenceRule.fromString('RRULE:${event.rrule!}');
       final iterable =
           rrule.getAllInstances(start: startUtc, before: targetUtc);
 
-      var count = 0;
       for (final occurrence in iterable) {
-        count++;
         final occurrenceLocal = occurrence.toLocal();
-        final dateStr = _dateToString(occurrenceLocal);
-        if (count <= 5) {
-          debugLog.add('  Occ. $count : $occurrenceLocal ($dateStr)');
-        }
-        if (dateStr == _dateToString(date)) {
-          debugLog.add('  → MATCH !');
+        if (_dateToString(occurrenceLocal) == _dateToString(date)) {
           return true;
         }
       }
-      debugLog.add('  Total occurrences calculées : $count');
-      debugLog.add('  → Pas d\'occurrence aujourd\'hui');
       return false;
     } catch (e) {
-      debugLog.add('  ERREUR RRULE : $e');
       return false;
     }
   }
@@ -251,7 +211,7 @@ class IcsService {
           summary = value;
           break;
         case 'DESCRIPTION':
-          description = value.isEmpty ? null : value;
+          description = value.isEmpty ? null : _decodeIcsText(value);
           break;
         case 'DTSTART':
           start = _parseIcsDate(value);
@@ -263,6 +223,18 @@ class IcsService {
     }
 
     return events;
+  }
+
+  /// Décode les séquences d'échappement du format ICS.
+  ///
+  /// Dans un fichier ICS, les retours à la ligne sont représentés
+  /// par la séquence littérale `\n`, et les virgules par `\,`.
+  static String _decodeIcsText(String value) {
+    return value
+        .replaceAll(r'\n', '\n')
+        .replaceAll(r'\,', ',')
+        .replaceAll(r'\;', ';')
+        .replaceAll(r'\\', '\\');
   }
 
   static List<String> _unfoldLines(String content) {
@@ -472,12 +444,9 @@ class IcsService {
     await db.delete('sync_errors');
   }
 
-  /// Compte les erreurs réelles (exclut les entrées [DEBUG]).
-  static Future<int> _countRealSyncErrors() async {
+  static Future<int> _countSyncErrors() async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery(
-      "SELECT COUNT(*) as count FROM sync_errors WHERE event_title != '[DEBUG]'",
-    );
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM sync_errors');
     return result.first['count'] as int? ?? 0;
   }
 

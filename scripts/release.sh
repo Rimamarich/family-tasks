@@ -140,25 +140,16 @@ AVAILABLE_GIB="$(awk "BEGIN {printf \"%.1f\", $AVAILABLE_KB/1024/1024}")"
 ok "Mémoire disponible : ${AVAILABLE_GIB} GiB"
 
 # ------------------------------------------------------------
-# 8. Régénération de la base de données de test
+# 8. Vérification du schéma de la base
 # ------------------------------------------------------------
 
 echo
-echo "→ Régénération de la base de données de test..."
+echo "→ Vérification du schéma de la base..."
 
-bash "$ROOT_DIR/scripts/reset-db.sh" >/dev/null
+[ -f "$ROOT_DIR/database/schema.sql" ] \
+  || fail "database/schema.sql est introuvable."
 
-[ -f "$ROOT_DIR/family-tasks.db" ] \
-  || fail "La base family-tasks.db n'a pas été créée."
-
-TASK_COUNT="$(sqlite3 "$ROOT_DIR/family-tasks.db" "SELECT COUNT(*) FROM tasks;")"
-
-[ "$TASK_COUNT" -gt 0 ] \
-  || fail "La base régénérée ne contient aucune tâche."
-
-cp "$ROOT_DIR/family-tasks.db" "$ROOT_DIR/assets/family-tasks.db"
-
-ok "Base régénérée ($TASK_COUNT tâches) et copiée dans assets/"
+ok "Schéma SQLite présent"
 
 # ------------------------------------------------------------
 # 9. Arrêt des anciens daemons Gradle

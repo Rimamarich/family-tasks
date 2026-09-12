@@ -40,6 +40,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _maxObtenues = 3;
   int _maxObtenuesLimit = 50;
   int _syncErrorCount = 0;
+  bool _familyConfigured = false;
+  int _defaultStars = 5;
+  static const int _defaultStarsMin = 1;
+  static const int _defaultStarsMax = 100;
 
   Map<String, String?> _lastSync = {
     'at': null,
@@ -73,6 +77,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final maxObtenuesLimit = await ConfigService.getMaxObtenuesLimit();
       final messages = await ConfigService.getMessages();
       final lastSync = await ConfigService.getLastSync();
+      final defaultStars = await ConfigService.getDefaultStars();
+      final familyConfigured = await ConfigService.isFamilyConfigured();
 
       // Compte les entrées dans sync_errors
       final db = await DatabaseHelper.instance.database;
@@ -109,6 +115,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _maxObtenuesLimit = maxObtenuesLimit;
         _syncErrorCount = syncErrorCount;
         _lastSync = lastSync;
+        _familyConfigured = familyConfigured;
+        _defaultStars = defaultStars;
         _isLoading = false;
       });
     } catch (e) {
@@ -468,13 +476,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _loadData();
   }
 
+  void _changeDefaultStars(int delta) async {
+    final newValue = _defaultStars + delta;
+    if (newValue < _defaultStarsMin || newValue > _defaultStarsMax) return;
+    setState(() => _defaultStars = newValue);
+    await ConfigService.setDefaultStars(newValue);
+  }
+
+  // ---- Configuration famille ----
+
+  Future<void> _toggleFamilyConfigured(bool value) async {
+    await ConfigService.setFamilyConfigured(value);
+    setState(() => _familyConfigured = value);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value
+              ? 'Configuration terminée. La synchronisation automatique est activée.'
+              : 'Configuration en cours. La synchronisation automatique est désactivée.'),
+        ),
+      );
+    }
+  }
+
   // ---- Synchronisation ----
 
-  void _saveIcsUrl() async {
+  Future<void> _saveIcsSettings() async {
     await ConfigService.setIcsUrl(_icsController.text.trim());
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Adresse ICS enregistrée.')),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Adresse ICS enregistrée.')),
+      );
+    }
   }
 
   Future<void> _syncNow() async {
@@ -646,15 +679,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
+                  _buildFamilyConfigSection(),
+                  const SizedBox(height: 12),
+                  _buildHelpSection(),
+                  const SizedBox(height: 24),
                   _buildMembersSection(),
                   const SizedBox(height: 24),
                   _buildMomentsSection(),
                   const SizedBox(height: 24),
-                  _buildRewardsSection(),
-                  const SizedBox(height: 24),
                   _buildSyncSection(),
                   const SizedBox(height: 24),
                   _buildSecuritySection(),
+                  const SizedBox(height: 24),
+                  _buildRewardsSection(),
                   const SizedBox(height: 24),
                   _buildEncouragementSection(),
                 ],
@@ -667,6 +704,157 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ---- Sections ----
+
+  Widget _buildFamilyConfigSection() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _familyConfigured
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: _familyConfigured
+              ? Colors.green.withValues(alpha: 0.3)
+              : Colors.orange.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _familyConfigured ? Icons.check_circle : Icons.warning_amber_rounded,
+                color: _familyConfigured ? Colors.green : Colors.orange,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'État de la famille',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Pour que l\'application fonctionne, configurez ces 4 éléments :\n'
+            '  1. Les membres de la famille\n'
+            '  2. Les moments de la journée\n'
+            '  3. L\'adresse du fichier ICS\n'
+            '  4. Le code PIN parental\n'
+            '\n'
+            'Le reste (réjouissances, messages) est optionnel.',
+            style: TextStyle(fontSize: 13, color: Colors.black87),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Configuration terminée'),
+            subtitle: Text(
+              _familyConfigured
+                  ? 'Synchro auto activée'
+                  : 'Synchro auto désactivée',
+              style: const TextStyle(fontSize: 12),
+            ),
+            value: _familyConfigured,
+            onChanged: _toggleFamilyConfigured,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.blueGrey.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: const Text('📖', style: TextStyle(fontSize: 24)),
+          title: const Text(
+            'Comment configurer l\'agenda ?',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            _buildHelpStep(
+              '1. Créez un agenda dédié aux tâches',
+              'N\'importe quel agenda convient dès lors qu\'il peut être '
+              'exporté au format iCal (fichier .ics).\n\n'
+              'Exemples : Google Agenda, Nextcloud, iCloud, Outlook, '
+              'Proton Calendar...',
+            ),
+            _buildHelpStep(
+              '2. Réglez le premier jour de la semaine sur lundi',
+              'Cette option est nécessaire pour que les événements '
+              'récurrents soient interprétés correctement.',
+            ),
+            _buildHelpStep(
+              '3. Écrivez les titres avec le bon format',
+              '• Un membre :  Ranger la chambre @Mimi #3\n'
+              '• Plusieurs :  Mettre la table @Marie @Antoine #2\n'
+              '• Tous :       Sortir les poubelles #5\n'
+              '• Sans #N :    Ranger le salon (utilise les étoiles par défaut)\n\n'
+              'Sans @membre, la tâche concerne tous les membres.\n'
+              'La description se met dans le champ "Description" '
+              'de l\'événement.',
+            ),
+            _buildHelpStep(
+              '4. Récupérez l\'adresse au format iCal',
+              'Cette adresse se trouve généralement dans les options '
+              'de partage de l\'agenda. Elle peut être publique, privée '
+              'ou secrète selon le fournisseur.\n\n'
+              '⚠️ Si l\'adresse commence par "webcal://", remplacez-le '
+              'par "https://".',
+            ),
+            _buildHelpStep(
+              '5. Collez l\'URL dans l\'application',
+              'Dans la section "Synchronisation ICS" ci-dessous, collez '
+              'l\'adresse puis cliquez sur Enregistrer.',
+            ),
+            _buildHelpStep(
+              '6. Activez la synchronisation automatique',
+              'Une fois tout configuré, activez le switch '
+              '"Configuration terminée" ci-dessus.',
+              isLast: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHelpStep(String title, String content, {bool isLast = false}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            content,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildMembersSection() {
     return _buildSection(
@@ -783,6 +971,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            children: [
+              const Text('Étoiles par défaut : ', style: TextStyle(fontSize: 14)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: _defaultStars > _defaultStarsMin
+                    ? () => _changeDefaultStars(-1)
+                    : null,
+              ),
+              Text('$_defaultStars',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () => _changeDefaultStars(1),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 4),
         for (var i = 0; i < _rewards.length; i++) _buildRewardTile(i),
       ],
@@ -841,7 +1050,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: _saveIcsUrl,
+                onPressed: _saveIcsSettings,
                 icon: const Icon(Icons.save_outlined),
                 label: const Text('Enregistrer'),
               ),
