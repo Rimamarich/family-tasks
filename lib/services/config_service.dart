@@ -85,7 +85,7 @@ class ConfigService {
   static Future<void> setMessages(List<String> messages) async {
     final db = await DatabaseHelper.instance.database;
     await db.update('config', {
-      'message_1': messages.length > 0 ? messages[0] : '',
+      'message_1': messages.isNotEmpty ? messages[0] : '',
       'message_2': messages.length > 1 ? messages[1] : '',
       'message_3': messages.length > 2 ? messages[2] : '',
       'message_4': messages.length > 3 ? messages[3] : '',

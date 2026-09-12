@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/config_service.dart';
 
-/// Popup de saisie du code PIN parental.
-///
-/// Affiche un widget PIN à 4 chiffres. Retourne `true` si le code
-/// est correct, `false` sinon (ou si l'utilisateur annule).
 class PinDialog extends StatelessWidget {
   const PinDialog({super.key});
 
-  /// Ouvre la popup et retourne `true` si le PIN est correct.
   static Future<bool> show(BuildContext context) async {
     final result = await showDialog<bool>(
       context: context,
@@ -19,31 +14,40 @@ class PinDialog extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return _PinDialogContent();
-  }
+  Widget build(BuildContext context) => const _PinDialogContent();
 }
 
 class _PinDialogContent extends StatefulWidget {
+  const _PinDialogContent();
+
   @override
   State<_PinDialogContent> createState() => _PinDialogContentState();
 }
 
 class _PinDialogContentState extends State<_PinDialogContent> {
   String? _errorMessage;
+  final GlobalKey<PinInputState> _pinKey = GlobalKey<PinInputState>();
+  bool _isChecking = false;
 
   Future<void> _onPinComplete(String pin) async {
-    final correctPin = await ConfigService.getParentPin();
+    if (_isChecking) return;
+    setState(() => _isChecking = true);
 
+    final correctPin = await ConfigService.getParentPin();
     if (!mounted) return;
 
-    if (correctPin != null && pin == correctPin) {
+    final effectivePin = correctPin ?? '0000';
+
+    if (pin == effectivePin) {
       Navigator.of(context).pop(true);
-    } else {
-      setState(() {
-        _errorMessage = 'Code PIN incorrect.';
-      });
+      return;
     }
+
+    setState(() {
+      _errorMessage = 'Code PIN incorrect.';
+      _isChecking = false;
+    });
+    _pinKey.currentState?.clear();
   }
 
   @override
@@ -60,17 +64,12 @@ class _PinDialogContentState extends State<_PinDialogContent> {
               style: TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
-            PinInput(
-              onComplete: _onPinComplete,
-            ),
+            PinInput(key: _pinKey, onComplete: _onPinComplete),
             if (_errorMessage != null) ...[
               const SizedBox(height: 8),
               Text(
                 _errorMessage!,
-                style: const TextStyle(
-                  color: Colors.red,
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: Colors.red, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -87,41 +86,36 @@ class _PinDialogContentState extends State<_PinDialogContent> {
   }
 }
 
-/// Widget de saisie du code PIN à 4 chiffres.
-///
-/// Reprend le même design que le widget des paramètres.
 class PinInput extends StatefulWidget {
   const PinInput({super.key, required this.onComplete});
-
   final void Function(String pin) onComplete;
 
   @override
-  State<PinInput> createState() => _PinInputState();
+  State<PinInput> createState() => PinInputState();
 }
 
-class _PinInputState extends State<PinInput> {
+class PinInputState extends State<PinInput> {
   final List<String?> _digits = List.filled(4, null);
   int _currentIndex = 0;
+  bool _submitted = false;
 
   void _addDigit(String digit) {
-    if (_currentIndex >= 4) return;
+    if (_currentIndex >= 4 || _submitted) return;
     setState(() {
       _digits[_currentIndex] = digit;
       _currentIndex++;
     });
-
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted && _currentIndex > 0) setState(() {});
-    });
-
     if (_currentIndex == 4) {
+      _submitted = true;
       final pin = _digits.whereType<String>().join();
-      widget.onComplete(pin);
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) widget.onComplete(pin);
+      });
     }
   }
 
   void _removeDigit() {
-    if (_currentIndex == 0) return;
+    if (_currentIndex == 0 || _submitted) return;
     setState(() {
       _currentIndex--;
       _digits[_currentIndex] = null;
@@ -134,6 +128,7 @@ class _PinInputState extends State<PinInput> {
         _digits[i] = null;
       }
       _currentIndex = 0;
+      _submitted = false;
     });
   }
 
@@ -148,7 +143,6 @@ class _PinInputState extends State<PinInput> {
           children: List.generate(4, (index) {
             final isActive = index == _currentIndex;
             final digit = _digits[index];
-
             return Container(
               width: 48,
               height: 56,
@@ -165,13 +159,9 @@ class _PinInputState extends State<PinInput> {
               ),
               alignment: Alignment.center,
               child: digit != null
-                  ? Text(
-                      digit,
+                  ? Text(digit,
                       style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
+                          fontSize: 24, fontWeight: FontWeight.bold))
                   : Container(
                       width: 10,
                       height: 10,
@@ -231,11 +221,9 @@ class _PinInputState extends State<PinInput> {
             borderRadius: BorderRadius.circular(10),
             onTap: () => _addDigit(digit),
             child: Center(
-              child: Text(
-                digit,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w500),
-              ),
+              child: Text(digit,
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.w500)),
             ),
           ),
         ),
@@ -250,9 +238,7 @@ class _PinInputState extends State<PinInput> {
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: _removeDigit,
-            child: const Center(
-              child: Icon(Icons.backspace_outlined, size: 20),
-            ),
+            child: const Center(child: Icon(Icons.backspace_outlined, size: 20)),
           ),
         ),
       );
@@ -266,9 +252,7 @@ class _PinInputState extends State<PinInput> {
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: _clear,
-            child: const Center(
-              child: Icon(Icons.clear, size: 20),
-            ),
+            child: const Center(child: Icon(Icons.clear, size: 20)),
           ),
         ),
       );

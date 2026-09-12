@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'screens/family_screen.dart';
 import 'screens/rewards_screen.dart';
 import 'screens/settings_screen.dart';
@@ -8,10 +9,6 @@ import 'services/member_service.dart';
 import 'widgets/bottom_menu.dart';
 import 'widgets/pin_dialog.dart';
 
-/// Configuration générale de l'application Family Tasks.
-///
-/// Gère la navigation entre les trois écrans principaux
-/// et intègre le menu de navigation commun.
 class FamilyTasksApp extends StatefulWidget {
   const FamilyTasksApp({super.key});
 
@@ -25,20 +22,15 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
-  // Hauteur en dessous de laquelle le menu inférieur disparaît
   static const double _limitedHeightThreshold = 550;
-
-  // Index de l'onglet Paramètres
   static const int _settingsTabIndex = 2;
 
-  // Liste des écrans
   final List<Widget> _screens = const [
     FamilyScreen(),
     RewardsScreen(),
     SettingsScreen(),
   ];
 
-  // Titres pour le Drawer
   static const List<String> _titles = ['Tâches', 'Réjouissances', 'Paramètres'];
   static const List<IconData> _icons = [
     Icons.home_rounded,
@@ -49,16 +41,10 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
   @override
   void initState() {
     super.initState();
-    // Charge la configuration initiale (détermine l'onglet de départ)
     _loadInitialState();
-    // Lance la synchronisation automatique en arrière-plan
     _runAutoSync();
   }
 
-  /// Détermine l'onglet de départ en fonction de l'existence de membres.
-  ///
-  /// Si aucun membre n'est en base, on démarre sur l'onglet Paramètres
-  /// pour inviter l'utilisateur à faire sa configuration initiale.
   Future<void> _loadInitialState() async {
     try {
       final members = await MemberService.getAll();
@@ -67,25 +53,20 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
         setState(() => _currentIndex = _settingsTabIndex);
       }
     } catch (e) {
-      // En cas d'erreur, on garde l'onglet Tâches par défaut
+      // ignore
     }
   }
 
-  /// Lance la synchronisation automatique si la configuration
-  /// familiale est activée. Affiche les mêmes messages que le
-  /// bouton Synchroniser des paramètres.
   Future<void> _runAutoSync() async {
     try {
       final isConfigured = await ConfigService.isFamilyConfigured();
       if (!isConfigured) return;
 
-      // Message de début
       _messengerKey.currentState?.showSnackBar(
         const SnackBar(content: Text('Synchronisation en cours...')),
       );
 
       final eventCount = await IcsService.sync();
-
       final lastSync = await ConfigService.getLastSync();
       final errorCount = _extractErrorCount(lastSync['message']);
 
@@ -95,16 +76,14 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
       } else if (errorCount == 0) {
         message = '$eventCount événement(s) synchronisé(s).';
       } else {
-        message =
-            '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
+        message = '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
       }
 
       _messengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(message)),
       );
     } catch (e) {
-      // Silencieux : si la synchro échoue au lancement, l'utilisateur
-      // verra le statut dans les Paramètres.
+      // Silencieux
     }
   }
 
@@ -117,13 +96,17 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
 
   /// Change d'onglet. Protège l'accès aux paramètres par PIN.
   Future<void> _onTabSelected(int index) async {
-    // Si on demande l'onglet Paramètres (et qu'on n'y est pas déjà),
-    // on vérifie le PIN
-    if (index == _settingsTabIndex && _currentIndex != _settingsTabIndex) {
+    // Rien à faire si on est déjà sur cet onglet
+    if (index == _currentIndex) return;
+
+    // Si on demande l'onglet Paramètres, on demande le PIN
+    if (index == _settingsTabIndex) {
       final ok = await PinDialog.show(context);
-      if (!ok || !mounted) return;
+      if (!mounted) return;
+      if (!ok) return; // PIN refusé ou annulé → on reste où on est
     }
 
+    if (!mounted) return;
     setState(() {
       _currentIndex = index;
     });
@@ -150,9 +133,7 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
 
               return Column(
                 children: [
-                  Expanded(
-                    child: _screens[_currentIndex],
-                  ),
+                  Expanded(child: _screens[_currentIndex]),
                   if (!isCompact)
                     BottomMenu(
                       currentIndex: _currentIndex,
@@ -177,10 +158,7 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
               width: double.infinity,
               child: const Text(
                 'Family Tasks',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
             ),
             const Divider(),
@@ -203,9 +181,12 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
                   ),
                 ),
                 selected: _currentIndex == i,
-                onTap: () {
-                  // Ferme le Drawer avant de vérifier le PIN
+                onTap: () async {
+                  // Ferme le drawer d'abord
                   Navigator.pop(context);
+                  // Attend la fin de l'animation de fermeture
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  if (!mounted) return;
                   _onTabSelected(i);
                 },
               ),

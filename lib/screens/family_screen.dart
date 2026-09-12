@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import '../models/member.dart';
 import '../models/task.dart';
 import '../services/member_service.dart';
@@ -60,6 +61,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
             await TaskService.getByMemberAndDate(member.id!, dateStr);
       }
 
+      if (!mounted) return;
+
       setState(() {
         _members = members;
         _momentList = moments;
@@ -67,6 +70,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -100,7 +104,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
 
   List<String> get moments => _momentList.map((m) => m.name).toList();
 
-  void toggleTask(int memberIndex, int taskIndex) async {
+  Future<void> toggleTask(int memberIndex, int taskIndex) async {
     final member = members[memberIndex];
     final task = member.tasks[taskIndex];
     final wasCompleted = task.completed;
@@ -110,9 +114,15 @@ class _FamilyScreenState extends State<FamilyScreen> {
     final newStars = wasCompleted
         ? member.stars - task.stars
         : member.stars + task.stars;
+
     await MemberService.updateStars(member.id!, newStars);
 
+    if (!mounted) return;
+
     await _loadData();
+
+    if (!mounted) return;
+
     _headerKey.currentState?.reload();
 
     // Si le solde devient négatif après dévalidation, afficher un message
@@ -129,6 +139,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 
   void _showCreditMessage(String name, int stars) {
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -148,11 +159,15 @@ class _FamilyScreenState extends State<FamilyScreen> {
     );
   }
 
-  void _showCongrats(String name) async {
+  Future<void> _showCongrats(String name) async {
     final messages = await ConfigService.getMessages();
+
+    if (!mounted) return;
+
     final message = messages.isNotEmpty
         ? messages[DateTime.now().millisecondsSinceEpoch % messages.length]
         : '$name a terminé toutes ses tâches du jour !';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -190,15 +205,18 @@ class _FamilyScreenState extends State<FamilyScreen> {
     final orientationChanged =
         _lastIsLandscape != null && _lastIsLandscape != isLandscape;
     _lastIsLandscape = isLandscape;
+
     final needsNewController = _pageController == null ||
         orientationChanged ||
         (_pageControllerViewportFraction! - viewportFraction).abs() > 0.01;
+
     if (needsNewController) {
       _pageController?.dispose();
       _pageController = PageController(
           viewportFraction: viewportFraction, initialPage: _currentPage);
       _pageControllerViewportFraction = viewportFraction;
     }
+
     return _pageController!;
   }
 

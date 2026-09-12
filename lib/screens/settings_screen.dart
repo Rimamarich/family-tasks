@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/member.dart';
 import '../services/member_service.dart';
 import '../services/moment_service.dart';
@@ -82,13 +83,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Compte les entrées dans sync_errors
       final db = await DatabaseHelper.instance.database;
-      final errorResult = await db.rawQuery('SELECT COUNT(*) as count FROM sync_errors');
+      final errorResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM sync_errors');
       final syncErrorCount = errorResult.first['count'] as int? ?? 0;
 
       final contributedByReward = <int, int>{};
       for (final reward in rewards) {
         final contributions = await RewardService.getContributions(reward.id!);
-        final activeContributions = contributions.where((c) => c.redemptionId == null);
+        final activeContributions =
+            contributions.where((c) => c.redemptionId == null);
         final total = activeContributions.fold(0, (sum, c) => sum + c.stars);
         contributedByReward[reward.id!] = total;
       }
@@ -99,11 +102,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       _icsController.text = await ConfigService.getIcsUrl() ?? '';
-      _message1Controller.text = messages.length > 0 ? messages[0] : '';
+      _message1Controller.text = messages.isNotEmpty ? messages[0] : '';
       _message2Controller.text = messages.length > 1 ? messages[1] : '';
       _message3Controller.text = messages.length > 2 ? messages[2] : '';
       _message4Controller.text = messages.length > 3 ? messages[3] : '';
       _message5Controller.text = messages.length > 4 ? messages[4] : '';
+
+      if (!mounted) return;
 
       setState(() {
         _members = members;
@@ -120,6 +125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -130,11 +136,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ---- Membres ----
 
-  void _addMember() async {
+  Future<void> _addMember() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => const MemberEditDialog(),
     );
+
+    if (!mounted) return;
+
     if (result != null) {
       final member = FamilyMember(
         name: result['name'],
@@ -147,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _editMember(int index) async {
+  Future<void> _editMember(int index) async {
     final member = _members[index];
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -157,6 +166,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         memberColor: member.color,
       ),
     );
+
+    if (!mounted) return;
+
     if (result != null) {
       final updated = member.copyWith(
         name: result['name'],
@@ -181,6 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             onPressed: () async {
               await MemberService.delete(_members[index].id!);
+              if (!context.mounted) return;
               Navigator.pop(context);
               await _loadData();
             },
@@ -192,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _togglePause(int index) async {
+  Future<void> _togglePause(int index) async {
     final member = _members[index];
     final updated = member.copyWith(pause: !member.pause);
     await MemberService.update(updated);
@@ -201,20 +214,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ---- Moments ----
 
-  void _addMoment() async {
+  Future<void> _addMoment() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => const MomentEditDialog(),
     );
+
+    if (!mounted) return;
+
     if (result != null) {
       final heure = result['heure_de_fin'] as String;
       final isTaken = await MomentService.isHeureDeFinTaken(heure);
+
+      if (!mounted) return;
+
       if (isTaken) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cette heure est déjà utilisée par un autre moment.')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('Cette heure est déjà utilisée par un autre moment.')),
+        );
         return;
       }
       final moment = Moment(name: result['name'], heureDeFin: heure);
@@ -223,7 +242,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _editMoment(int index) async {
+  Future<void> _editMoment(int index) async {
     final moment = _moments[index];
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -232,15 +251,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         momentEndTime: moment.heureDeFin,
       ),
     );
+
+    if (!mounted) return;
+
     if (result != null) {
       final heure = result['heure_de_fin'] as String;
-      final isTaken = await MomentService.isHeureDeFinTaken(heure, excludeId: moment.id);
+      final isTaken =
+          await MomentService.isHeureDeFinTaken(heure, excludeId: moment.id);
+
+      if (!mounted) return;
+
       if (isTaken) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cette heure est déjà utilisée par un autre moment.')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('Cette heure est déjà utilisée par un autre moment.')),
+        );
         return;
       }
       final updated = Moment(
@@ -253,17 +279,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _deleteMoment(int index) async {
+  Future<void> _deleteMoment(int index) async {
     final moment = _moments[index];
 
     if (_moments.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossible de supprimer le dernier moment.')),
+        const SnackBar(
+            content: Text('Impossible de supprimer le dernier moment.')),
       );
       return;
     }
 
     final taskCount = await MomentService.countTasks(moment.id!);
+
+    if (!mounted) return;
 
     if (taskCount == 0) {
       _confirmDeleteMoment(moment);
@@ -277,7 +306,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer le moment'),
-        content: Text('Veux-tu vraiment supprimer le moment "${moment.name}" ?'),
+        content:
+            Text('Veux-tu vraiment supprimer le moment "${moment.name}" ?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
@@ -285,6 +315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             onPressed: () async {
               await MomentService.delete(moment.id!);
+              if (!context.mounted) return;
               Navigator.pop(context);
               await _loadData();
             },
@@ -339,11 +370,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ---- Réjouissances ----
 
-  void _addReward() async {
+  Future<void> _addReward() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => const RewardEditDialog(),
     );
+
+    if (!mounted) return;
+
     if (result != null) {
       final reward = Reward(
         title: result['title'],
@@ -356,7 +390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _editReward(int index) async {
+  Future<void> _editReward(int index) async {
     final reward = _rewards[index];
     final contributed = _contributedByReward[reward.id] ?? 0;
     final result = await showDialog<Map<String, dynamic>>(
@@ -369,6 +403,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         minCost: contributed,
       ),
     );
+
+    if (!mounted) return;
+
     if (result != null) {
       final newCost = result['cost'] as int;
       final requiresNote = result['requires_note'] as bool;
@@ -455,6 +492,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             onPressed: () async {
               await RewardService.delete(_rewards[index].id!);
+              if (!context.mounted) return;
               Navigator.pop(context);
               await _loadData();
             },
@@ -466,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _toggleRewardActive(int index, bool active) async {
+  Future<void> _toggleRewardActive(int index, bool active) async {
     final reward = _rewards[index];
     if (active) {
       await RewardService.reactivate(reward.id!);
@@ -476,7 +514,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _loadData();
   }
 
-  void _changeDefaultStars(int delta) async {
+  Future<void> _changeDefaultStars(int delta) async {
     final newValue = _defaultStars + delta;
     if (newValue < _defaultStarsMin || newValue > _defaultStarsMax) return;
     setState(() => _defaultStars = newValue);
@@ -487,27 +525,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleFamilyConfigured(bool value) async {
     await ConfigService.setFamilyConfigured(value);
+
+    if (!mounted) return;
+
     setState(() => _familyConfigured = value);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(value
-              ? 'Configuration terminée. La synchronisation automatique est activée.'
-              : 'Configuration en cours. La synchronisation automatique est désactivée.'),
-        ),
-      );
-    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value
+            ? 'Configuration terminée. La synchronisation automatique est activée.'
+            : 'Configuration en cours. La synchronisation automatique est désactivée.'),
+      ),
+    );
   }
 
   // ---- Synchronisation ----
 
   Future<void> _saveIcsSettings() async {
     await ConfigService.setIcsUrl(_icsController.text.trim());
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adresse ICS enregistrée.')),
-      );
-    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Adresse ICS enregistrée.')),
+    );
   }
 
   Future<void> _syncNow() async {
@@ -523,6 +564,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final lastSync = await ConfigService.getLastSync();
     final errorCount = _extractErrorCount(lastSync['message']);
 
+    if (!mounted) return;
+
     String message;
     if (eventCount == 0 && errorCount == 0) {
       message = 'Aucun événement à synchroniser aujourd\'hui.';
@@ -533,7 +576,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
     }
 
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
@@ -585,7 +627,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 2),
                     Text(
                       row['error_message'] as String,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade700),
                     ),
                   ],
                 ),
@@ -603,15 +646,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _savePin(String pin) {
-    ConfigService.setParentPin(pin);
+  Future<void> _savePin(String pin) async {
+    await ConfigService.setParentPin(pin);
+
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Code PIN modifié.')),
     );
     _pinKey.currentState?.clear();
   }
 
-  void _saveMessages() async {
+  Future<void> _saveMessages() async {
     await ConfigService.setMessages([
       _message1Controller.text.trim(),
       _message2Controller.text.trim(),
@@ -619,12 +665,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _message4Controller.text.trim(),
       _message5Controller.text.trim(),
     ]);
+
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Messages enregistrés.')),
     );
   }
 
-  void _changeMaxObtenues(int delta) async {
+  Future<void> _changeMaxObtenues(int delta) async {
     final newValue = _maxObtenues + delta;
     if (newValue < 1 || newValue > _maxObtenuesLimit) return;
     setState(() => _maxObtenues = newValue);
@@ -646,7 +695,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
               const SizedBox(height: 16),
-              const Text('Erreur de chargement', style: TextStyle(fontSize: 18)),
+              const Text('Erreur de chargement',
+                  style: TextStyle(fontSize: 18)),
               const SizedBox(height: 8),
               Text(_errorMessage,
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -725,7 +775,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(
             children: [
               Icon(
-                _familyConfigured ? Icons.check_circle : Icons.warning_amber_rounded,
+                _familyConfigured
+                    ? Icons.check_circle
+                    : Icons.warning_amber_rounded,
                 color: _familyConfigured ? Colors.green : Colors.orange,
                 size: 24,
               ),
@@ -741,10 +793,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           const Text(
             'Pour que l\'application fonctionne, configurez ces 4 éléments :\n'
-            '  1. Les membres de la famille\n'
-            '  2. Les moments de la journée\n'
-            '  3. L\'adresse du fichier ICS\n'
-            '  4. Le code PIN parental\n'
+            ' 1. Les membres de la famille\n'
+            ' 2. Les moments de la journée\n'
+            ' 3. L\'adresse du fichier ICS\n'
+            ' 4. Le code PIN parental\n'
             '\n'
             'Le reste (réjouissances, messages) est optionnel.',
             style: TextStyle(fontSize: 13, color: Colors.black87),
@@ -792,42 +844,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildHelpStep(
               '1. Créez un agenda dédié aux tâches',
               'N\'importe quel agenda convient dès lors qu\'il peut être '
-              'exporté au format iCal (fichier .ics).\n\n'
-              'Exemples : Google Agenda, Nextcloud, iCloud, Outlook, '
-              'Proton Calendar...',
+                  'exporté au format iCal (fichier .ics).\n\n'
+                  'Exemples : Google Agenda, Nextcloud, iCloud, Outlook, '
+                  'Proton Calendar...',
             ),
             _buildHelpStep(
               '2. Réglez le premier jour de la semaine sur lundi',
               'Cette option est nécessaire pour que les événements '
-              'récurrents soient interprétés correctement.',
+                  'récurrents soient interprétés correctement.',
             ),
             _buildHelpStep(
               '3. Écrivez les titres avec le bon format',
-              '• Un membre :  Ranger la chambre @Mimi #3\n'
-              '• Plusieurs :  Mettre la table @Marie @Antoine #2\n'
-              '• Tous :       Sortir les poubelles #5\n'
-              '• Sans #N :    Ranger le salon (utilise les étoiles par défaut)\n\n'
-              'Sans @membre, la tâche concerne tous les membres.\n'
-              'La description se met dans le champ "Description" '
-              'de l\'événement.',
+              '• Un membre : Ranger la chambre @Mimi #3\n'
+                  '• Plusieurs : Mettre la table @Marie @Antoine #2\n'
+                  '• Tous : Sortir les poubelles #5\n'
+                  '• Sans #N : Ranger le salon (utilise les étoiles par défaut)\n\n'
+                  'Sans @membre, la tâche concerne tous les membres.\n'
+                  'La description se met dans le champ "Description" '
+                  'de l\'événement.',
             ),
             _buildHelpStep(
               '4. Récupérez l\'adresse au format iCal',
               'Cette adresse se trouve généralement dans les options '
-              'de partage de l\'agenda. Elle peut être publique, privée '
-              'ou secrète selon le fournisseur.\n\n'
-              '⚠️ Si l\'adresse commence par "webcal://", remplacez-le '
-              'par "https://".',
+                  'de partage de l\'agenda. Elle peut être publique, privée '
+                  'ou secrète selon le fournisseur.\n\n'
+                  '⚠️ Si l\'adresse commence par "webcal://", remplacez-le '
+                  'par "https://".',
             ),
             _buildHelpStep(
               '5. Collez l\'URL dans l\'application',
               'Dans la section "Synchronisation ICS" ci-dessous, collez '
-              'l\'adresse puis cliquez sur Enregistrer.',
+                  'l\'adresse puis cliquez sur Enregistrer.',
             ),
             _buildHelpStep(
               '6. Activez la synchronisation automatique',
               'Une fois tout configuré, activez le switch '
-              '"Configuration terminée" ci-dessus.',
+                  '"Configuration terminée" ci-dessus.',
               isLast: true,
             ),
           ],
@@ -879,9 +931,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: m.color.withValues(alpha: 0.2),
           child: Text(m.avatar, style: const TextStyle(fontSize: 22)),
         ),
-        title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title:
+            Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: m.pause
-            ? Text('En pause', style: TextStyle(color: Colors.orange.shade700, fontSize: 12))
+            ? Text('En pause',
+                style:
+                    TextStyle(color: Colors.orange.shade700, fontSize: 12))
             : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -956,14 +1011,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Row(
             children: [
-              const Text('Nb obtenues affichées : ', style: TextStyle(fontSize: 14)),
+              const Text('Nb obtenues affichées : ',
+                  style: TextStyle(fontSize: 14)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.remove_circle_outline),
-                onPressed: _maxObtenues > 1 ? () => _changeMaxObtenues(-1) : null,
+                onPressed:
+                    _maxObtenues > 1 ? () => _changeMaxObtenues(-1) : null,
               ),
               Text('$_maxObtenues',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
                 onPressed: () => _changeMaxObtenues(1),
@@ -975,7 +1033,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Row(
             children: [
-              const Text('Étoiles par défaut : ', style: TextStyle(fontSize: 14)),
+              const Text('Étoiles par défaut : ',
+                  style: TextStyle(fontSize: 14)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.remove_circle_outline),
@@ -984,7 +1043,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     : null,
               ),
               Text('$_defaultStars',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
                 onPressed: () => _changeDefaultStars(1),
@@ -1007,7 +1067,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           r.active ? Icons.star_rounded : Icons.star_border_rounded,
           color: r.active ? Colors.amber : Colors.grey,
         ),
-        title: Text(r.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title:
+            Text(r.title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
           '${r.cost} ⭐${r.uniqueReward ? " • Unique" : ""}${r.requiresNote ? " • Note requise" : ""}${!r.active ? " • Masquée" : ""}',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -1108,7 +1169,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case 'partial':
         color = Colors.orange;
         icon = Icons.warning_amber_rounded;
-        label = message.isNotEmpty ? message : 'Certains événements ont échoué.';
+        label =
+            message.isNotEmpty ? message : 'Certains événements ont échoué.';
         break;
       case 'failed':
         color = Colors.red;
@@ -1141,12 +1203,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       'Dernière synchronisation : $formattedDate',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       label,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade700),
                     ),
                   ],
                 ),
@@ -1174,7 +1238,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: '🔒 Code PIN parental',
       children: [
         const SizedBox(height: 8),
-        const Text('Nouveau code PIN (4 chiffres) :', style: TextStyle(fontSize: 14)),
+        const Text('Nouveau code PIN (4 chiffres) :',
+            style: TextStyle(fontSize: 14)),
         const SizedBox(height: 8),
         PinInputWidget(key: _pinKey, onComplete: _savePin),
       ],
@@ -1231,9 +1296,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Row(
           children: [
-            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold)),
             const Spacer(),
-            if (trailing != null) trailing,
+            ?trailing,
           ],
         ),
         const SizedBox(height: 8),
@@ -1247,7 +1314,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 class PinInputWidget extends StatefulWidget {
   const PinInputWidget({super.key, required this.onComplete});
+
   final void Function(String pin) onComplete;
+
   @override
   State<PinInputWidget> createState() => _PinInputWidgetState();
 }
@@ -1302,19 +1371,23 @@ class _PinInputWidgetState extends State<PinInputWidget> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: isActive ? Theme.of(context).primaryColor : Colors.grey.shade300,
+                  color: isActive
+                      ? Theme.of(context).primaryColor
+                      : Colors.grey.shade300,
                   width: isActive ? 2 : 1,
                 ),
               ),
               alignment: Alignment.center,
               child: _digits[index] != null
                   ? Text(_digits[index]!,
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold))
                   : Container(
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: isActive ? Colors.grey.shade400 : Colors.transparent,
+                        color:
+                            isActive ? Colors.grey.shade400 : Colors.transparent,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -1331,26 +1404,34 @@ class _PinInputWidgetState extends State<PinInputWidget> {
     return Column(
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _buildKey('1'), const SizedBox(width: 8),
-          _buildKey('2'), const SizedBox(width: 8),
+          _buildKey('1'),
+          const SizedBox(width: 8),
+          _buildKey('2'),
+          const SizedBox(width: 8),
           _buildKey('3'),
         ]),
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _buildKey('4'), const SizedBox(width: 8),
-          _buildKey('5'), const SizedBox(width: 8),
+          _buildKey('4'),
+          const SizedBox(width: 8),
+          _buildKey('5'),
+          const SizedBox(width: 8),
           _buildKey('6'),
         ]),
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _buildKey('7'), const SizedBox(width: 8),
-          _buildKey('8'), const SizedBox(width: 8),
+          _buildKey('7'),
+          const SizedBox(width: 8),
+          _buildKey('8'),
+          const SizedBox(width: 8),
           _buildKey('9'),
         ]),
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _buildBackspaceKey(), const SizedBox(width: 8),
-          _buildKey('0'), const SizedBox(width: 8),
+          _buildBackspaceKey(),
+          const SizedBox(width: 8),
+          _buildKey('0'),
+          const SizedBox(width: 8),
           _buildDoneKey(),
         ]),
       ],
@@ -1367,8 +1448,10 @@ class _PinInputWidgetState extends State<PinInputWidget> {
             borderRadius: BorderRadius.circular(10),
             onTap: () => _addDigit(digit),
             child: Center(
-                child: Text(digit,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500))),
+              child: Text(digit,
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.w500)),
+            ),
           ),
         ),
       );
@@ -1391,7 +1474,9 @@ class _PinInputWidgetState extends State<PinInputWidget> {
         width: 64,
         height: 52,
         child: Material(
-          color: _currentIndex == 4 ? Theme.of(context).primaryColor : Colors.grey.shade300,
+          color: _currentIndex == 4
+              ? Theme.of(context).primaryColor
+              : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(10),
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
@@ -1400,7 +1485,8 @@ class _PinInputWidgetState extends State<PinInputWidget> {
                     widget.onComplete(_digits.whereType<String>().join());
                   }
                 : null,
-            child: const Center(child: Icon(Icons.check, color: Colors.white, size: 24)),
+            child: const Center(
+                child: Icon(Icons.check, color: Colors.white, size: 24)),
           ),
         ),
       );
