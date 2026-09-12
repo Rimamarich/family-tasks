@@ -39,6 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   int _maxObtenues = 3;
   int _maxObtenuesLimit = 50;
+  int _syncErrorCount = 0;
 
   Map<String, String?> _lastSync = {
     'at': null,
@@ -73,6 +74,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final messages = await ConfigService.getMessages();
       final lastSync = await ConfigService.getLastSync();
 
+      // Compte les entrées dans sync_errors
+      final db = await DatabaseHelper.instance.database;
+      final errorResult = await db.rawQuery('SELECT COUNT(*) as count FROM sync_errors');
+      final syncErrorCount = errorResult.first['count'] as int? ?? 0;
+
       final contributedByReward = <int, int>{};
       for (final reward in rewards) {
         final contributions = await RewardService.getContributions(reward.id!);
@@ -101,6 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _hasHistory = hasHistory;
         _maxObtenues = maxObtenues;
         _maxObtenuesLimit = maxObtenuesLimit;
+        _syncErrorCount = syncErrorCount;
         _lastSync = lastSync;
         _isLoading = false;
       });
@@ -480,7 +487,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!mounted) return;
 
-    // Récupère le statut pour compter les erreurs
     final lastSync = await ConfigService.getLastSync();
     final errorCount = _extractErrorCount(lastSync['message']);
 
@@ -502,8 +508,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _loadData();
   }
 
-  /// Extrait le nombre d'erreurs depuis un message du type
-  /// "2 événement(s) en erreur."
   int _extractErrorCount(String? message) {
     if (message == null || message.isEmpty) return 0;
     final match = RegExp(r'(\d+)').firstMatch(message);
@@ -511,7 +515,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return int.tryParse(match.group(1)!) ?? 0;
   }
 
-  /// Ouvre le journal des erreurs de la dernière synchronisation.
   Future<void> _showErrorJournal() async {
     final db = await DatabaseHelper.instance.database;
     final results = await db.query('sync_errors', orderBy: 'id ASC');
@@ -883,7 +886,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Color color;
     IconData icon;
     String label;
-    bool showDetails = false;
+
+    // Le bouton apparaît dès qu'il y a des entrées dans sync_errors
+    final showDetails = _syncErrorCount > 0;
 
     switch (status) {
       case 'success':
@@ -895,7 +900,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         color = Colors.orange;
         icon = Icons.warning_amber_rounded;
         label = message.isNotEmpty ? message : 'Certains événements ont échoué.';
-        showDetails = true;
         break;
       case 'failed':
         color = Colors.red;

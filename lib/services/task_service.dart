@@ -21,6 +21,7 @@ class TaskService {
       'tasks',
       where: 'member_id = ? AND task_date = ?',
       whereArgs: [memberId, date],
+      orderBy: 'task_time ASC, title ASC',
     );
     return results.map((row) => _rowToTask(row)).toList();
   }
@@ -59,6 +60,7 @@ class TaskService {
       description: row['description'] as String?,
       completed: (row['completed'] as int) == 1,
       taskDate: row['task_date'] as String,
+      taskTime: row['task_time'] as String?,
     );
   }
 }

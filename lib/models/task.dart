@@ -9,6 +9,7 @@ class TaskItem {
     this.description,
     this.completed = false,
     this.taskDate,
+    this.taskTime,
   });
 
   /// Identifiant unique dans la base de données.
@@ -28,6 +29,7 @@ class TaskItem {
 
   /// Date de la tâche au format YYYY-MM-DD.
   final String? taskDate;
+  final String? taskTime;
 
   /// Crée une copie avec des champs modifiés.
   TaskItem copyWith({
@@ -39,6 +41,7 @@ class TaskItem {
     String? description,
     bool? completed,
     String? taskDate,
+    String? taskTime,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -49,6 +52,7 @@ class TaskItem {
       description: description ?? this.description,
       completed: completed ?? this.completed,
       taskDate: taskDate ?? this.taskDate,
+      taskTime: taskTime ?? this.taskTime
     );
   }
 }

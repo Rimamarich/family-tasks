@@ -25,6 +25,7 @@ CREATE TABLE tasks (
   completed INTEGER NOT NULL DEFAULT 0,
   moment_id INTEGER NOT NULL,
   task_date TEXT NOT NULL,
+  task_time TEXT,
 
   FOREIGN KEY (member_id) REFERENCES members(id),
   FOREIGN KEY (moment_id) REFERENCES moments(id),
