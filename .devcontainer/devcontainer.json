@@ -12,7 +12,7 @@
     "PATH": "/home/codespace/flutter/bin:/home/codespace/flutter/bin/cache/dart-sdk/bin:/home/codespace/android-sdk/platform-tools:/home/codespace/android-sdk/cmdline-tools/latest/bin:${containerEnv:PATH}"
   },
 
-  "postCreateCommand": "if [ ! -x /home/codespace/flutter/bin/flutter ]; then git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git /home/codespace/flutter; fi && /home/codespace/flutter/bin/flutter precache --android",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
 
   "customizations": {
     "vscode": {
