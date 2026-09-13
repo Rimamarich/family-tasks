@@ -68,15 +68,26 @@ class _FamilyTasksAppState extends State<FamilyTasksApp> {
 
       final eventCount = await IcsService.sync();
       final lastSync = await ConfigService.getLastSync();
-      final errorCount = _extractErrorCount(lastSync['message']);
 
       String message;
-      if (eventCount == 0 && errorCount == 0) {
-        message = 'Aucun événement à synchroniser aujourd\'hui.';
-      } else if (errorCount == 0) {
-        message = '$eventCount événement(s) synchronisé(s).';
+      if (lastSync['status'] == 'failed') {
+        // La synchro a échoué (réseau, HTTP, fichier illisible...) : on
+        // affiche le message d'échec réel plutôt que de deviner un compte
+        // d'erreurs à partir du texte, qui peut ne contenir aucun chiffre
+        // (ex: "Impossible de télécharger le fichier ICS.") et faisait
+        // alors passer l'échec pour "aucun événement à synchroniser".
+        message = lastSync['message']?.isNotEmpty == true
+            ? lastSync['message']!
+            : 'Échec de la synchronisation.';
       } else {
-        message = '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
+        final errorCount = _extractErrorCount(lastSync['message']);
+        if (eventCount == 0 && errorCount == 0) {
+          message = 'Aucun événement à synchroniser aujourd\'hui.';
+        } else if (errorCount == 0) {
+          message = '$eventCount événement(s) synchronisé(s).';
+        } else {
+          message = '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
+        }
       }
 
       _messengerKey.currentState?.showSnackBar(

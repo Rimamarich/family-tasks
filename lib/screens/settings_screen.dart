@@ -562,18 +562,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
 
     final lastSync = await ConfigService.getLastSync();
-    final errorCount = _extractErrorCount(lastSync['message']);
 
     if (!mounted) return;
 
     String message;
-    if (eventCount == 0 && errorCount == 0) {
-      message = 'Aucun événement à synchroniser aujourd\'hui.';
-    } else if (errorCount == 0) {
-      message = '$eventCount événement(s) synchronisé(s).';
+    if (lastSync['status'] == 'failed') {
+      // Échec réel (réseau, HTTP, fichier illisible...). On affiche le
+      // message d'échec tel quel : essayer d'en extraire un nombre
+      // d'erreurs (via _extractErrorCount) est trompeur ici, car ce
+      // message ne contient pas forcément de chiffre (ex: "Impossible de
+      // télécharger le fichier ICS.") — cela faisait passer l'échec pour
+      // un simple "aucun événement à synchroniser aujourd'hui".
+      message = (lastSync['message']?.isNotEmpty ?? false)
+          ? lastSync['message']!
+          : 'Échec de la synchronisation.';
     } else {
-      message =
-          '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
+      final errorCount = _extractErrorCount(lastSync['message']);
+      if (eventCount == 0 && errorCount == 0) {
+        message = 'Aucun événement à synchroniser aujourd\'hui.';
+      } else if (errorCount == 0) {
+        message = '$eventCount événement(s) synchronisé(s).';
+      } else {
+        message =
+            '$eventCount événement(s) synchronisé(s), $errorCount en erreur.';
+      }
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
